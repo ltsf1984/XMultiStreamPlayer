@@ -24,12 +24,14 @@ public:
 
     // ========== Packet 队列操作 ==========
     bool PushPacket(size_t source_id, AVPacketPtr packet);
+    bool TryPushPacket(size_t source_id, AVPacketPtr packet);
     bool PopPacket(size_t source_id, AVPacketPtr& packet);
     bool TryPopPacket(size_t source_id, AVPacketPtr& packet);
     size_t GetPacketQueueSize(size_t source_id) const;
 
     // ========== Frame 队列操作 ==========
     bool PushFrame(size_t source_id, AVFramePtr frame);
+    bool TryPushFrame(size_t source_id, AVFramePtr frame);
     bool PopFrame(size_t source_id, AVFramePtr& frame);
     bool TryPopFrame(size_t source_id, AVFramePtr& frame);
     size_t GetFrameQueueSize(size_t source_id) const;

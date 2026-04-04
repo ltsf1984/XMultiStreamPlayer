@@ -25,10 +25,10 @@ void XMultiStreamPlayer::MultiPlayPushButton()
     auto d3d_ctx_ = std::make_shared<D3D11HardwareContext>(reinterpret_cast<HWND>(win_id));
     play_engine_->SetD3DContext(d3d_ctx_);
 
-    for (int i = 1; i < 32; ++i)
+    for (int i = 0; i < 16; ++i)
     {
         std::string filename = "camera_videos\\test_video_" +
-            (i < 10 ? "0" + std::to_string(i) : std::to_string(i)) +
+            (i+1 < 10 ? "0" + std::to_string(i+1) : std::to_string(i+1)) +
             ".mp4";
         play_engine_->AddStream(i, filename);
     }

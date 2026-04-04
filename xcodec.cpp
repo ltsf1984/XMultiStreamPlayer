@@ -58,7 +58,7 @@ bool XCodec::Create(AVCodecID codec_id, bool is_encoder)
         return false;
     }
 
-    std::cout << "Codec created: " << avcodec_get_name(codec_id) << std::endl;
+    //std::cout << "Codec created: " << avcodec_get_name(codec_id) << std::endl;
     return true;
 }
 
@@ -108,7 +108,7 @@ bool XCodec::SetCodecHw(std::shared_ptr< D3D11HardwareContext> d3d_ctx)
     av_opt_set_int(context_->priv_data, "threads", 1, 0);           // 单线程解码，避免驱动问题
     av_opt_set_int(context_->priv_data, "refcounted_frames", 1, 0); // 引用计数帧
 
-    std::cout << "Hardware decoder configured successfully" << std::endl;
+    //std::cout << "Hardware decoder configured successfully" << std::endl;
     return true;
 }
 
@@ -118,7 +118,7 @@ enum AVPixelFormat XCodec::get_hw_format_static(
 {
     for (const enum AVPixelFormat* p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
         if (*p == AV_PIX_FMT_D3D11) {
-            std::cout << "Selected format: D3D11" << std::endl;
+            //std::cout << "Selected format: D3D11" << std::endl;
 
             if (!ctx->hw_frames_ctx) {
                 AVBufferRef* frames_ref = av_hwframe_ctx_alloc(ctx->hw_device_ctx);
@@ -153,18 +153,18 @@ enum AVPixelFormat XCodec::get_hw_format_static(
                 }
 
                 ctx->hw_frames_ctx = frames_ref;
-                std::cout << "HW frames context created successfully" << std::endl;
+                //std::cout << "HW frames context created successfully" << std::endl;
 
                 // 获取实际分配的对齐尺寸
                 AVHWFramesContext* actual_ctx = (AVHWFramesContext*)ctx->hw_frames_ctx->data;
-                std::cout << "  Actual HW frames dimensions: " << actual_ctx->width << "x" << actual_ctx->height << std::endl;
+                //std::cout << "  Actual HW frames dimensions: " << actual_ctx->width << "x" << actual_ctx->height << std::endl;
             }
             return AV_PIX_FMT_D3D11;
         }
     }
 
-    std::cout << "D3D11 format not supported, falling back to software: "
-        << av_get_pix_fmt_name(pix_fmts[0]) << std::endl;
+    //std::cout << "D3D11 format not supported, falling back to software: "
+    //    << av_get_pix_fmt_name(pix_fmts[0]) << std::endl;
     return pix_fmts[0];
 }
 
@@ -219,7 +219,7 @@ bool XCodec::Open()
         return false;
     }
 
-    std::cout << "Codec opened successfully" << std::endl;
+    //std::cout << "Codec opened successfully" << std::endl;
     return true;
 }
 

@@ -65,7 +65,7 @@ bool XMultiPlayEngine::Initialize()
     initialized_ = true;
     running_ = true;
 
-    std::cout << "XMultiPlayEngine initialized successfully" << std::endl;
+    //std::cout << "XMultiPlayEngine initialized successfully" << std::endl;
     return true;
 }
 
@@ -124,7 +124,7 @@ bool XMultiPlayEngine::InitializeRenderManager()
 void XMultiPlayEngine::SetupCallbacks()
 {
     // ========== 数据流向 ==========
-    // Demuxer → PacketEnqueue → PacketQueue →
+    // ReadPacket → Demuxer → PacketEnqueue → PacketQueue →
     // PacketDequeue → Decoder → FrameEnqueue → FrameQueue →
     // FrameDequeue → Renderer
     // =================================
@@ -133,7 +133,7 @@ void XMultiPlayEngine::SetupCallbacks()
     demuxer_manager_->SetPacketEnqueue(
         [this](size_t stream_id, AVPacketPtr packet) {
             if (queue_manager_) {
-                queue_manager_->PushPacket(stream_id, std::move(packet));
+                queue_manager_->TryPushPacket(stream_id, std::move(packet));
                 total_packets_processed_++;
             }
         }
@@ -160,6 +160,9 @@ void XMultiPlayEngine::SetupCallbacks()
     decoder_callbacks.on_frame_enqueue =
         [this](size_t stream_id, AVFramePtr frame) {
         if (queue_manager_ && frame) {
+            auto size = queue_manager_->GetFrameQueueSize(stream_id);
+            //std::cout << "Stream "<< stream_id<< " Frame enqueue " <<
+            //     "size: "<< size <<std::endl;
             queue_manager_->PushFrame(stream_id, std::move(frame));
             total_frames_processed_++;
             UpdateStreamInfo(stream_id);
@@ -260,7 +263,7 @@ bool XMultiPlayEngine::AddStream(size_t stream_id, const std::string& file_path)
     }
 
     NotifyStreamAdded(stream_id);
-    std::cout << "Stream " << stream_id << " added: " << file_path << std::endl;
+    //std::cout << "Stream " << stream_id << " added: " << file_path << std::endl;
 
     // 自动启动
     if (config_.auto_start) {
@@ -289,7 +292,7 @@ bool XMultiPlayEngine::RemoveStream(size_t stream_id)
     }
 
     NotifyStreamRemoved(stream_id);
-    std::cout << "Stream " << stream_id << " removed" << std::endl;
+    //std::cout << "Stream " << stream_id << " removed" << std::endl;
 
     return true;
 }
@@ -322,7 +325,7 @@ bool XMultiPlayEngine::StartStream(size_t stream_id)
     }
 
     NotifyStreamStarted(stream_id);
-    std::cout << "Stream " << stream_id << " started" << std::endl;
+    //std::cout << "Stream " << stream_id << " started" << std::endl;
 
     return true;
 }
@@ -347,7 +350,7 @@ bool XMultiPlayEngine::StopStream(size_t stream_id)
     }
 
     NotifyStreamStopped(stream_id);
-    std::cout << "Stream " << stream_id << " stopped" << std::endl;
+    //std::cout << "Stream " << stream_id << " stopped" << std::endl;
 
     return true;
 }
@@ -373,7 +376,7 @@ bool XMultiPlayEngine::PauseStream(size_t stream_id)
     }
 
     NotifyStreamPaused(stream_id);
-    std::cout << "Stream " << stream_id << " paused" << std::endl;
+    //std::cout << "Stream " << stream_id << " paused" << std::endl;
 
     return true;
 }
@@ -399,7 +402,7 @@ bool XMultiPlayEngine::ResumeStream(size_t stream_id)
     }
 
     NotifyStreamResumed(stream_id);
-    std::cout << "Stream " << stream_id << " resumed" << std::endl;
+    //std::cout << "Stream " << stream_id << " resumed" << std::endl;
 
     return true;
 }
@@ -409,6 +412,12 @@ void XMultiPlayEngine::StartAllStreams()
     auto stream_ids = demuxer_manager_->GetValidSourceIds();
     for (auto id : stream_ids) {
         StartStream(id);
+    }
+
+    // 自动启动渲染
+    if (config_.auto_start_rendering && render_manager_ && !render_manager_->IsRunning()) {
+        render_manager_->Start();
+        std::cout << "Rendering auto-started by StartAllStreams" << std::endl;
     }
 }
 

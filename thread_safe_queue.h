@@ -16,9 +16,7 @@ public:
     // Push 一个 item，无限等待
     bool Push(T item) {
         std::unique_lock<std::mutex> lock(mutex_);
-        //if (queue_.size() >= max_size_) return false;
         cv_push_.wait(lock, [this] {return queue_.size() < max_size_; });
-        //std::cout << "queue size : " << queue_.size() << std::endl;
         queue_.push(std::move(item));
         cv_pop_.notify_one();
         return true;
@@ -27,9 +25,10 @@ public:
     // Push 一个 item，超时返回
     bool Push(T item, std::chrono::milliseconds timeout) {
         std::unique_lock<std::mutex> lock(mutex_);
-        //if (queue_.size() >= max_size_) return false;
-        cv_push_.wait_for(lock, timeout, [this] {return queue_.size() < max_size_; });
-        //std::cout << "queue size : " << queue_.size() << std::endl;
+        // 等待队列有空位，如果超时返回 false
+        if (!cv_push_.wait_for(lock, timeout, [this] { return queue_.size() < max_size_; })) {
+            return false;  // 超时，不 push
+        }
         queue_.push(std::move(item));
         cv_pop_.notify_one();
         return true;
@@ -44,8 +43,9 @@ public:
         cv_push_.notify_one();
     }
 
+    // 非阻塞 TryPush：未满就存，满则返回 false
     bool TryPush(T item) {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::unique_lock<std::mutex> lock(mutex_);
         if (queue_.size() >= max_size_) return false;
         queue_.push(std::move(item));
         cv_pop_.notify_one();
@@ -58,6 +58,7 @@ public:
         if (queue_.empty()) return false;
         out_item = std::move(queue_.front());
         queue_.pop();
+        cv_push_.notify_one();
         return true;
     }
 

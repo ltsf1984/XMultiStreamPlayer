@@ -319,8 +319,10 @@ void XMultiDemuxerManager::PollingLoop()
                 if (packet_enqueue_) {
                     packet_enqueue_(i, std::move(pkt));
                 }
-                std::cout << "Demux Stream " << i << std::endl;
+                //std::cout << "Demux Stream " << i << std::endl;
                 // 每轮只读一个 packet，保证公平性
+                // 读取一个pkt，sleep(1),一轮总计32ms，模拟30fps的相机
+                std::this_thread::sleep_for(std::chrono::milliseconds(3));
                 continue;
             }
         }

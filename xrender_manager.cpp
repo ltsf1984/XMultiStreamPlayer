@@ -1,7 +1,6 @@
 // xrender_manager.cpp
 #include "xrender_manager.h"
 #include <iostream>
-#include <chrono>
 
 XRenderManager::XRenderManager()
 {
@@ -21,38 +20,30 @@ bool XRenderManager::Initialize(const XRenderManagerConfig& config)
 {
     config_ = config;
 
-    // 初始化合成器
-    XCompositorConfig compositor_config;
-    compositor_config.rows = config_.rows;
-    compositor_config.cols = config_.cols;
-    compositor_config.target_width = config_.target_width;
-    compositor_config.target_height = config_.target_height;
-    compositor_config.placeholder_r = 255;
-    compositor_config.placeholder_g = 0;
-    compositor_config.placeholder_b = 0;
-    compositor_config.placeholder_a = 255;
+    // 初始化合成器（零拷贝版本）
+    LayoutConfig layout_config;
+    layout_config.rows = config_.rows;
+    layout_config.cols = config_.cols;
+    layout_config.target_width = config_.target_width;
+    layout_config.target_height = config_.target_height;
 
     compositor_ = std::make_unique<XImageCompositor>();
-    if (!compositor_->Initialize(compositor_config)) {
+    if (!compositor_->Initialize(layout_config)) {
         std::cerr << "Failed to initialize compositor" << std::endl;
         return false;
     }
 
-    // 初始化帧容器
-    current_frames_.resize(config_.max_streams, nullptr);
-
-    // 计算帧间隔
-    if (config_.render_fps > 0) {
-        frame_interval_ = std::chrono::microseconds(1000000 / config_.render_fps);
+    // 初始化帧数组为空
+    for (auto& frame : current_frames_) {
+        frame = nullptr;
     }
 
     last_stats_time_ = std::chrono::steady_clock::now();
 
-    std::cout << "XRenderManager initialized: "
+    std::cout << "XRenderManager (zero-copy) initialized: "
         << config_.rows << "x" << config_.cols
         << ", target size: " << config_.target_width << "x" << config_.target_height
         << ", FPS: " << config_.render_fps
-        << ", max streams: " << config_.max_streams
         << std::endl;
 
     return true;
@@ -74,7 +65,6 @@ void XRenderManager::SetFrameDequeue(FrameDequeue callback)
 void XRenderManager::Start()
 {
     if (running_) {
-        std::cout << "XRenderManager already running" << std::endl;
         return;
     }
 
@@ -93,7 +83,7 @@ void XRenderManager::Start()
     last_render_time_ = std::chrono::steady_clock::now();
     render_thread_ = std::make_unique<std::thread>(&XRenderManager::RenderLoop, this);
 
-    std::cout << "XRenderManager started" << std::endl;
+    std::cout << "XRenderManager started (zero-copy mode)" << std::endl;
 }
 
 void XRenderManager::Stop()
@@ -110,8 +100,7 @@ void XRenderManager::Stop()
     }
 
     std::cout << "XRenderManager stopped, total frames rendered: "
-        << total_frames_rendered_.load()
-        << ", missed: " << total_frames_missed_.load() << std::endl;
+        << total_frames_rendered_.load() << std::endl;
 }
 
 void XRenderManager::Pause()
@@ -131,40 +120,20 @@ void XRenderManager::UpdateConfig(const XRenderManagerConfig& config)
 {
     config_ = config;
 
-    // 更新合成器配置
-    XCompositorConfig compositor_config;
-    compositor_config.rows = config_.rows;
-    compositor_config.cols = config_.cols;
-    compositor_config.target_width = config_.target_width;
-    compositor_config.target_height = config_.target_height;
-    compositor_config.placeholder_r = 255;
-    compositor_config.placeholder_g = 0;
-    compositor_config.placeholder_b = 0;
-    compositor_config.placeholder_a = 255;
-
     if (compositor_) {
-        compositor_->UpdateConfig(compositor_config);
+        compositor_->SetLayout(config_.rows, config_.cols);
     }
 
-    // 更新帧间隔
     if (config_.render_fps > 0) {
         frame_interval_ = std::chrono::microseconds(1000000 / config_.render_fps);
     }
-
-    // 调整帧容器大小
-    if (config_.max_streams != current_frames_.size()) {
-        current_frames_.resize(config_.max_streams, nullptr);
-    }
-
-    std::cout << "XRenderManager config updated" << std::endl;
 }
 
 void XRenderManager::RenderLoop()
 {
-    std::cout << "Render loop started" << std::endl;
+    std::cout << "Render loop started (zero-copy mode)" << std::endl;
 
     while (running_) {
-        // 检查暂停状态
         {
             std::unique_lock<std::mutex> lock(pause_mtx_);
             pause_cv_.wait(lock, [this]() {
@@ -174,26 +143,20 @@ void XRenderManager::RenderLoop()
 
         if (!running_) break;
 
-        // 帧率控制
         auto now = std::chrono::steady_clock::now();
         auto elapsed = now - last_render_time_;
 
         if (elapsed < frame_interval_) {
-            auto sleep_time = frame_interval_ - elapsed;
-            std::this_thread::sleep_for(sleep_time);
+            std::this_thread::sleep_for(frame_interval_ - elapsed);
             now = std::chrono::steady_clock::now();
         }
 
-        // 收集所有流的当前帧
         CollectFrames();
-
-        // 合成并渲染
-        RenderCompositeTexture();
+        RenderTiled();
 
         last_render_time_ = now;
         total_frames_rendered_++;
 
-        // 定期打印统计（每 5 秒）
         auto stats_elapsed = now - last_stats_time_;
         if (stats_elapsed >= std::chrono::seconds(5)) {
             PrintStats();
@@ -206,61 +169,58 @@ void XRenderManager::RenderLoop()
 
 void XRenderManager::CollectFrames()
 {
-    if (!frame_dequeue_) {
+    if (!frame_dequeue_ || !compositor_) {
         return;
     }
 
-    // 遍历所有流
-    for (size_t i = 0; i < current_frames_.size(); ++i) {
+    // 从队列获取所有流的当前帧
+    for (size_t i = 0; i < 32; ++i) {
         AVFramePtr frame;
 
-        // 尝试从队列获取帧（非阻塞）
+        // 尝试从队列获取帧
         if (frame_dequeue_(i, frame)) {
-            if (frame) {
-                // 成功获取新帧，替换旧帧
-                current_frames_[i] = std::move(frame);
-            }
-            else {
-                // 队列空，记录未命中
-                total_frames_missed_++;
-            }
+            // 成功获取帧（frame 一定有效）
+            current_frames_[i] = std::move(frame);
+            compositor_->UpdateCell(static_cast<int>(i), current_frames_[i].get());
+        }
+        else {
+            // 队列为空，标记为无效（显示红色占位符）
+            current_frames_[i] = nullptr;
+            compositor_->UpdateCell(static_cast<int>(i), nullptr);
         }
     }
 }
 
-void XRenderManager::RenderCompositeTexture()
+void XRenderManager::RenderTiled()
 {
-    if (!compositor_ || !d3d_ctx_) {
+    if (!d3d_ctx_ || !compositor_) {
         return;
     }
 
-    // 准备帧指针数组（传递给合成器）
-    std::vector<AVFrame*> frame_ptrs;
-    frame_ptrs.reserve(current_frames_.size());
+    // 准备纹理数组（初始化所有为 nullptr）
+    std::array<ID3D11Texture2D*, 32> textures_y = {};
+    std::array<ID3D11Texture2D*, 32> textures_uv = {};
+    std::array<int, 32> slice_indices = {};
 
-    for (auto& frame : current_frames_) {
-        frame_ptrs.push_back(frame.get());
-    }
-
-    // 调用合成器合成图片
-    ID3D11Texture2D* composite_texture = compositor_->Composite(frame_ptrs);
-
-    if (composite_texture) {
-        // 渲染合成后的纹理到窗口
-        bool success = d3d_ctx_->RenderFrame(composite_texture, 0);
-
-        if (!success) {
-            static bool warned = false;
-            if (!warned) {
-                std::cerr << "Failed to render composite texture" << std::endl;
-                warned = true;
-            }
+    const auto& cells = compositor_->GetAllCells();
+    for (int i = 0; i < 32; ++i) {
+        if (cells[i].valid && cells[i].texture) {
+            textures_y[i] = cells[i].texture;
+            textures_uv[i] = cells[i].texture;
+            slice_indices[i] = cells[i].slice_index;
         }
+        // 无效的单元格 textures[i] 保持 nullptr
     }
-    else {
+
+    // 调用渲染器（零拷贝，Shader 直接采样）
+    bool success = d3d_ctx_->RenderTiled(
+        textures_y, textures_uv, slice_indices,
+        config_.rows, config_.cols);
+
+    if (!success) {
         static bool warned = false;
         if (!warned) {
-            std::cerr << "Failed to composite frames" << std::endl;
+            std::cerr << "Failed to render tiled display" << std::endl;
             warned = true;
         }
     }
@@ -268,17 +228,11 @@ void XRenderManager::RenderCompositeTexture()
 
 void XRenderManager::PrintStats() const
 {
-    std::cout << "\n========== XRenderManager Statistics ==========" << std::endl;
+    std::cout << "\n========== XRenderManager Statistics (Zero-Copy) ==========" << std::endl;
     std::cout << "Total frames rendered: " << total_frames_rendered_.load() << std::endl;
-    std::cout << "Total frames missed: " << total_frames_missed_.load() << std::endl;
-    std::cout << "Frame miss rate: "
-        << (total_frames_rendered_.load() > 0 ?
-            (total_frames_missed_.load() * 100.0 / total_frames_rendered_.load()) : 0)
-        << "%" << std::endl;
     std::cout << "Target FPS: " << config_.render_fps << std::endl;
     std::cout << "Resolution: " << config_.target_width << "x" << config_.target_height << std::endl;
     std::cout << "Grid: " << config_.rows << "x" << config_.cols << std::endl;
-    std::cout << "Active streams: " << current_frames_.size() << std::endl;
 
     // 统计有帧的流数量
     size_t active_streams = 0;
@@ -289,16 +243,5 @@ void XRenderManager::PrintStats() const
     }
     std::cout << "Streams with data: " << active_streams << std::endl;
 
-    if (compositor_) {
-        std::cout << "Total frames composited: " << compositor_->GetTotalFramesComposited() << std::endl;
-    }
-
-    std::cout << "================================================" << std::endl;
-}
-
-void XRenderManager::UpdateFrameRate()
-{
-    if (config_.render_fps > 0) {
-        frame_interval_ = std::chrono::microseconds(1000000 / config_.render_fps);
-    }
+    std::cout << "============================================================" << std::endl;
 }

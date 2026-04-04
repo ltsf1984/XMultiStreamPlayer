@@ -109,7 +109,7 @@ bool XMultiDecoderManager::InitDecoder(size_t source_id, AVCodecParameters* code
     decoders_[source_id] = std::move(decoder);
     states_[source_id]->store(DecoderState::Idle);
 
-    std::cout << "Initialized decoder for source " << source_id << std::endl;
+    //std::cout << "Initialized decoder for source " << source_id << std::endl;
     return true;
 }
 
@@ -149,7 +149,7 @@ bool XMultiDecoderManager::StartDecoder(size_t source_id)
         &XMultiDecoderManager::DecoderThreadFunc, this, source_id
         );
 
-    std::cout << "Started decoder thread for source " << source_id << std::endl;
+    //std::cout << "Started decoder thread for source " << source_id << std::endl;
     return true;
 }
 
@@ -180,8 +180,8 @@ void XMultiDecoderManager::StopDecoder(size_t source_id, bool wait)
         decoder_threads_[source_id]->join();
     }
 
-    std::cout << "Stopped decoder thread for source " << source_id
-        << ", frames output: " << frames_output_[source_id]->load() << std::endl;
+    //std::cout << "Stopped decoder thread for source " << source_id
+    //    << ", frames output: " << frames_output_[source_id]->load() << std::endl;
 }
 
 void XMultiDecoderManager::StopAll()
@@ -199,7 +199,7 @@ void XMultiDecoderManager::StopAll()
         }
     }
 
-    std::cout << "All decoders stopped" << std::endl;
+    //std::cout << "All decoders stopped" << std::endl;
 }
 
 void XMultiDecoderManager::PauseDecoder(size_t source_id)
@@ -335,7 +335,7 @@ bool XMultiDecoderManager::AddDecoder()
     last_pts_.push_back(std::make_unique<std::atomic<int64_t>>(0));
     error_msgs_.resize(new_count);
 
-    std::cout << "Added decoder, total: " << new_count << std::endl;
+    //std::cout << "Added decoder, total: " << new_count << std::endl;
     return true;
 }
 
@@ -349,7 +349,7 @@ void XMultiDecoderManager::DecoderThreadFunc(size_t source_id)
     auto& decoder = decoders_[source_id];
     auto& state = states_[source_id];
 
-    std::cout << "Decoder thread " << source_id << " started" << std::endl;
+    //std::cout << "Decoder thread " << source_id << " started" << std::endl;
 
     while (true) {
         DecoderState current = state->load();
@@ -372,11 +372,11 @@ void XMultiDecoderManager::DecoderThreadFunc(size_t source_id)
         // 使用 on_packet_dequeue 回调获取 packet
         AVPacketPtr pkt;
         if (!callbacks_.on_packet_dequeue || !callbacks_.on_packet_dequeue(source_id, pkt)) {
-            break;
+            continue;
         }
 
         if (!pkt) {
-            break;
+            continue;
         }
 
         packets_received_[source_id]->fetch_add(1);
@@ -410,9 +410,9 @@ void XMultiDecoderManager::DecoderThreadFunc(size_t source_id)
 
     DrainDecoder(source_id);
 
-    std::cout << "Decoder thread " << source_id << " stopped, "
-        << "packets: " << packets_received_[source_id]->load()
-        << ", frames: " << frames_output_[source_id]->load() << std::endl;
+    //std::cout << "Decoder thread " << source_id << " stopped, "
+    //    << "packets: " << packets_received_[source_id]->load()
+    //    << ", frames: " << frames_output_[source_id]->load() << std::endl;
 
     state->store(DecoderState::Stopped);
 }
@@ -429,7 +429,7 @@ void XMultiDecoderManager::DrainDecoder(size_t source_id)
             recv_result == XCodec::ReceiveResult::Ended ||
             recv_result == XCodec::ReceiveResult::Failed) {
             break;
-        }
+        }        
 
         if (recv_result == XCodec::ReceiveResult::Success) {
             frames_output_[source_id]->fetch_add(1);

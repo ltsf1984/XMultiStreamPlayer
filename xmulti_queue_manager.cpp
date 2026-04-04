@@ -32,6 +32,14 @@ bool XMultiQueueManager::PushPacket(size_t source_id, AVPacketPtr packet)
     return packet_queues_[source_id]->Push(std::move(packet));
 }
 
+bool XMultiQueueManager::TryPushPacket(size_t source_id, AVPacketPtr packet)
+{
+    if (source_id >= packet_queues_.size()) {
+        return false;
+    }
+    return packet_queues_[source_id]->TryPush(std::move(packet));
+}
+
 bool XMultiQueueManager::PopPacket(size_t source_id, AVPacketPtr& packet)
 {
     if (source_id >= packet_queues_.size()) {
@@ -63,6 +71,14 @@ bool XMultiQueueManager::PushFrame(size_t source_id, AVFramePtr frame)
         return false;
     }
     return frame_queues_[source_id]->Push(std::move(frame));
+}
+
+bool XMultiQueueManager::TryPushFrame(size_t source_id, AVFramePtr frame)
+{
+    if (source_id >= frame_queues_.size()) {
+        return false;
+    }
+    return frame_queues_[source_id]->TryPush(std::move(frame));
 }
 
 bool XMultiQueueManager::PopFrame(size_t source_id, AVFramePtr& frame)
