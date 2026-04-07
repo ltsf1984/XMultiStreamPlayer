@@ -113,9 +113,7 @@
     <ClCompile Include="xmulti_demuxer_manager.cpp" />
     <ClCompile Include="xmulti_play_engine.cpp" />
     <ClCompile Include="xmulti_queue_manager.cpp" />
-    <ClCompile Include="XRenderer.cpp" />
     <ClCompile Include="xrender_manager.cpp" />
-    <ClCompile Include="xrender_thread.cpp" />
     <QtRcc Include="xmulti_stream_player.qrc" />
     <QtUic Include="xmulti_stream_player.ui" />
     <QtMoc Include="xmulti_stream_player.h" />
@@ -139,9 +137,7 @@
     <ClInclude Include="xmulti_demuxer_manager.h" />
     <ClInclude Include="xmulti_play_engine.h" />
     <ClInclude Include="xmulti_queue_manager.h" />
-    <ClInclude Include="XRenderer.h" />
     <ClInclude Include="xrender_manager.h" />
-    <ClInclude Include="xrender_thread.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

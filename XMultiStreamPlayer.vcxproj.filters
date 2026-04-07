@@ -49,9 +49,6 @@
     <ClCompile Include="xdemuxer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="XRenderer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="pix_format.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -73,9 +70,6 @@
     <ClCompile Include="xmulti_decoder_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="xrender_thread.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="ximage_compositor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -87,13 +81,7 @@
     <ClInclude Include="d3d11_hardware_context.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="xrender_thread.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="thread_safe_queue.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="XRenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="xcodec.h">
